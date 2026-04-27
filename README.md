@@ -27,7 +27,7 @@ TestcaseToJIRA/
 ## Build
 
 ```bash
-mvn package -q
+mvn clean package
 # Produces: target/testrail-to-jira-1.0.0.jar
 ```
 
