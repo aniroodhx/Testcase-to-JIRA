@@ -1,21 +1,21 @@
-# TestRail → Jira (Java)
+# Testcase To JIRA
 
-Java port of the Python `TestCaseToJira` project.  
-Same functionality: fetch a TestRail test case, call Claude via AWS Bedrock, create a Jira bug.
+Automatically creates bugs (Jira) from TestRail test cases using Claude AI (AWS Bedrock).
 
 ## Project layout
 
 ```
-TestCaseToJira/
+TestcaseToJIRA/
 ├── pom.xml                          # Maven build
-├── credentials.json                 # Your API keys (same file as Python version)
-├── Jira_prompt.txt                  # Claude prompt template (unchanged)
-├── chrome-extension/                # Unchanged – still points to localhost:5000
-└── src/main/java/com/testrail/jira/
-    ├── Credentials.java             # Maps credentials.json
-    ├── TestRailToJira.java          # Core logic (port of functions.py)
-    ├── ApiServer.java               # HTTP server on :5000 (port of api_server.py)
-    └── Main.java                    # CLI entry point
+├── credentials.json                 # Your API keys (not committed)
+├── chrome-extension/                # Chrome extension — injects button on TestRail
+└── src/main/
+    ├── resources/Jira_prompt.txt    # Claude prompt template
+    └── java/com/testrail/jira/
+        ├── Credentials.java         # Maps credentials.json
+        ├── TestRailToJira.java      # Core logic: TestRail → Claude → Jira
+        ├── ApiServer.java           # HTTP server on :5000
+        └── Main.java                # CLI entry point
 ```
 
 ## Prerequisites
@@ -40,8 +40,6 @@ java -jar target/testrail-to-jira-1.0.0.jar
 # Listening on http://localhost:5000
 ```
 
-The Chrome extension calls `POST /create-jira-bug` with `{ case_id, step_no }` — identical to the Python version.
-
 ### Command line
 
 ```bash
@@ -52,5 +50,11 @@ java -cp target/testrail-to-jira-1.0.0.jar com.testrail.jira.Main C12345 3
 
 ## Chrome extension
 
-Load `chrome-extension/` as an unpacked extension in Chrome — no changes needed.  
-It still calls `http://localhost:5000/create-jira-bug`.
+1. Open Chrome → `chrome://extensions`
+2. Enable **Developer mode**
+3. Click **Load unpacked** → select the `chrome-extension/` folder
+4. Navigate to any TestRail case (`/cases/view/<id>`) — the **🐛 Create JIRA** button will appear
+
+## License
+
+Copyright © 2026 Anirudh S. Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
