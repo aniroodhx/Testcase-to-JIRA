@@ -1,0 +1,4 @@
+target/
+credentials.json
+*.class
+.DS_Store

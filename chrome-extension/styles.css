@@ -1,0 +1,23 @@
+#jira-bug-button-container {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#create-jira-bug-btn:hover {
+    transform: scale(1.05);
+    transition: all 0.2s ease;
+}
+
+#create-jira-bug-btn:active {
+    transform: scale(0.98);
+}

@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "TestRail to Jira Bug Creator",
+  "version": "1.0",
+  "description": "Automatically create Jira bugs from TestRail test cases using Claude AI",
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://testrail.p2r.amazon.dev/*",
+    "http://localhost:5000/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://testrail.p2r.amazon.dev/*"
+      ],
+      "js": ["content.js"],
+      "css": ["styles.css"]
+    }
+  ]
+}
