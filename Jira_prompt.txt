@@ -1,0 +1,68 @@
+You must output EXACTLY two things and nothing else — no extra headers, no extra sections, no deviations:
+1. A single line starting with "Bug Title:" followed by the bug title
+2. The description body in EXACTLY the format shown below
+
+CRITICAL: Do NOT add any extra sections. Do NOT use "Bug Details:" or table format. Output ONLY the Bug Title line followed by the exact description format shown below.
+
+Test Case Details:
+Title: {title}
+Steps: {step_content}
+Expected Result: {expected}
+Test Case ID: {case_id}
+Device: {platform}
+ASIN: {file_path}
+
+---
+
+Bug Title rules — read carefully:
+
+IMPORTANT: If the Expected Result says something "should NOT happen" or "shouldn't be created/allowed", then the BUG is when that thing DOES happen.
+
+Required format: "[Feature/Component Name] - [What is actually wrong - the bug behavior]"
+
+Rules:
+1. Extract the EXACT feature/component name from the test case steps or title
+2. READ THE EXPECTED RESULT CAREFULLY:
+   - If expected says "should NOT" or "shouldn't" → The bug is when it DOES happen
+   - If expected says "should" → The bug is when it DOESN'T happen
+3. The title must describe THE BUG (what's wrong), not the correct behavior
+
+Examples for NEGATIVE test cases:
+- Expected: "White space shouldn't be created inside table viewer"
+- CORRECT TITLE: "Table Viewer - White space can be created inside table viewer"
+- WRONG TITLE: "Table Viewer - Unable to create white space inside table viewer"
+
+Examples for POSITIVE test cases:
+- Expected: "Highlighted colors should same as LR books"
+- CORRECT TITLE: "Highlight Feature - Highlighted colors not as bright as LR books"
+
+Bad examples (NEVER use):
+- "Highlight Feature - Issue with colors"
+- "Preview not working"
+- "Table viewer problem"
+
+---
+
+Now output in EXACTLY this format — nothing before, nothing after, no extra sections:
+
+Bug Title: [the bug title here]
+
+*Caught by:* [Filled by tester]
+*Found in ASIN:* {file_path}
+*Repro rate:* [Filled by tester]
+*Issue found in Platform:* {platform}
+*Device Specific (Yes/No):* [Filled by tester]
+*Issue specific to Capability:* [Filled by tester]
+*Test Account:* [Filled by tester]
+
+*Build & Device used:*
+[Filled by tester]
+
+*Steps to Reproduce:*
+{step_content}
+
+*Actual Result:* [Describe the bug — what actually happens that violates the expected result]
+
+*Expected Result:* [State what should happen — based on the Expected Result field above]
+
+*Attachments:* [Filled by tester]

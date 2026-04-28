@@ -135,9 +135,18 @@ public class TestRailToJira {
         if (isMockMode || bedrock == null) {
             System.out.println("⚠️ RUNNING IN MOCK MODE: Generating dummy response...");
             return "Bug Title: [Feature] - Mock issue found in " + step.get("content") + "\n\n" +
-                   "Steps to Reproduce:\n1. Open Kindle App\n2. Perform " + step.get("content") + "\n\n" +
-                   "Actual Behavior: The white space is not retained.\n" +
-                   "Expected Behavior: " + step.get("expected");
+                    "*Caught by:* [Filled by tester]\n" +
+                    "*Found in ASIN:* " + getStringOrEmpty(testCase, "file_path") + "\n" +
+                    "*Repro rate:* [Filled by tester]\n" +
+                    "*Issue found in Platform:* " + getStringOrEmpty(testCase, "platform") + "\n" +
+                    "*Device Specific (Yes/No):* [Filled by tester]\n" +
+                    "*Issue specific to Capability:* [Filled by tester]\n" +
+                    "*Test Account:* [Filled by tester]\n\n" +
+                    "*Build & Device used:*\n[Filled by tester]\n\n" +
+                    "*Steps to Reproduce:*\n" + step.get("content") + "\n\n" +
+                    "*Actual Result:* [Filled by tester]\n" +
+                    "*Expected Result:* " + step.get("expected") + "\n\n" +
+                    "*Attachments:* [Filled by tester]";
         }
 
         try {
