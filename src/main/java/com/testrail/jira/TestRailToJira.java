@@ -28,7 +28,7 @@ public class TestRailToJira {
     private static final String MODEL_ID = "anthropic.claude-3-sonnet-20240229-v1:0";
     
     // Set this to true to test without AWS access
-    private boolean isMockMode = true; 
+    private boolean isMockMode = false; 
 
     private final Credentials creds;
     private BedrockRuntimeClient bedrock;
@@ -91,7 +91,9 @@ public class TestRailToJira {
                 String body = EntityUtils.toString(resp.getEntity());
                 JsonObject tc = JsonParser.parseString(body).getAsJsonObject();
                 tc.addProperty("platform", getStringOrEmpty(tc, "custom_platform"));
-                tc.addProperty("file_path", getStringOrEmpty(tc, "custom_filepath"));
+                String rawFilePath = getStringOrEmpty(tc, "custom_filepath");
+                String cleanFilePath = rawFilePath.replaceAll("!\\[\\]\\([^)]*\\)", "").strip();
+                tc.addProperty("file_path", cleanFilePath);
                 return tc;
             }
         } catch (Exception e) {
@@ -152,6 +154,7 @@ public class TestRailToJira {
         try {
             String title = getStringOrEmpty(testCase, "title");
             String platform = getStringOrEmpty(testCase, "platform");
+            if (platform.isEmpty()) platform = "[Filled by tester]";
             String filePath = getStringOrEmpty(testCase, "file_path");
             String stepNumber = step.get("step_number");
             String stepContent = step.get("content");
@@ -211,7 +214,11 @@ public class TestRailToJira {
             project.addProperty("key", "KRQ");
             fields.add("project", project);
             fields.addProperty("summary", bugTitle);
-            fields.addProperty("description", processedContent);
+            String descriptionBody = Arrays.stream(processedContent.split("\n"))
+                    .filter(line -> !line.strip().startsWith("Bug Title:"))
+                    .collect(java.util.stream.Collectors.joining("\n"))
+                    .strip();
+            fields.addProperty("description", descriptionBody);
             JsonObject issueType = new JsonObject();
             issueType.addProperty("name", "Bug");
             fields.add("issuetype", issueType);
