@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: TestcaseToJIRA Lambda — Bedrock only
+
+Globals:
+  Function:
+    Timeout: 60
+    MemorySize: 512
+    Runtime: java17
+    Architectures: [x86_64]
+
+Resources:
+  TestcaseToJiraFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: testcase-to-jira
+      Handler: com.testrail.jira.LambdaHandler::handleRequest
+      CodeUri: target/testrail-to-jira.jar
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - bedrock:InvokeModel
+            Resource: arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0
+      Events:
+        GenerateDescription:
+          Type: HttpApi
+          Properties:
+            Path: /generate-description
+            Method: POST
+        Options:
+          Type: HttpApi
+          Properties:
+            Path: /generate-description
+            Method: OPTIONS
+
+Outputs:
+  ApiEndpoint:
+    Description: "Lambda endpoint — already set in content.js"
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.us-west-2.amazonaws.com/generate-description"

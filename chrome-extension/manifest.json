@@ -1,23 +1,33 @@
 {
   "manifest_version": 3,
   "name": "TestRail to Jira Bug Creator",
-  "version": "1.0",
+  "version": "2.0",
   "description": "Automatically create Jira bugs from TestRail test cases using Claude AI",
   "permissions": [
     "activeTab",
-    "scripting"
+    "scripting",
+    "storage",
+    "tabs"
   ],
   "host_permissions": [
     "https://testrail.p2r.amazon.dev/*",
-    "http://localhost:5000/*"
+    "https://testrail.kindle.amazon.dev/*",
+    "https://issues.labcollab.net/*",
+    "https://kam.labcollab.net/*",
+    "https://p39n1seqxd.execute-api.us-west-2.amazonaws.com/*"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": [
-        "https://testrail.p2r.amazon.dev/*"
+        "https://testrail.p2r.amazon.dev/*",
+        "https://testrail.kindle.amazon.dev/*"
       ],
       "js": ["content.js"],
       "css": ["styles.css"]
     }
-  ]
+  ],
+  "options_page": "options.html"
 }
