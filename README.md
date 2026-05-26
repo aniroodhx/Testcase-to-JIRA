@@ -1,60 +1,142 @@
-# Testcase To JIRA
+# Testcase to JIRA
+Defect generation system
 
-Automatically creates bugs (Jira) from TestRail test cases using Claude AI (AWS Bedrock).
+A Chrome extension that lets testers create Jira bugs from TestRail test cases with one click. Claude AI (AWS Bedrock, Claude 3 Sonnet) automatically generates the bug title and description from the failing test step.
 
-## Project layout
+---
+
+## Features
+
+- ✅ **AI-generated bug reports** — Claude 3 Sonnet generates the bug title and full Jira description from the TestRail test case and failing step
+- ✅ **One-click Jira creation** — no copy-pasting, no manual formatting
+- ✅ **Auto Jira token fetch** — fetches your LASSO token from KAM automatically (must be on VPN)
+- ✅ **Duplicate prevention** — searches Jira before creating; shows existing bugs and offers Force Create for different steps
+- ✅ **Dynamic Jira project selection** — configure any project key in Options (default: KRQ)
+- ✅ **Multi TestRail support** — works on both `testrail.p2r.amazon.dev` and `testrail.kindle.amazon.dev`
+- ✅ **VPN-aware architecture** — TestRail and Jira are called from the browser (VPN session); Bedrock is called via Lambda
+
+---
+
+## Architecture
 
 ```
-TestcaseToJIRA/
-├── pom.xml                          # Maven build
-├── credentials.json                 # Your API keys (not committed)
-├── chrome-extension/                # Chrome extension — injects button on TestRail
-└── src/main/
-    ├── resources/Jira_prompt.txt    # Claude prompt template
-    └── java/com/testrail/jira/
-        ├── Credentials.java         # Maps credentials.json
-        ├── TestRailToJira.java      # Core logic: TestRail → Claude → Jira
-        ├── ApiServer.java           # HTTP server on :5000
-        └── Main.java                # CLI entry point
+Chrome Extension (user on VPN/mwinit)
+    │
+    ├── 1. Fetch TestRail case       → directly from browser (VPN)
+    ├── 2. POST test case data       → AWS Lambda
+    │         └── Bedrock (Claude 3 Sonnet) generates bug_title + description
+    ├── 3. POST to Jira              → background service worker (VPN, no CORS)
+    └── 4. Show success dialog with Jira URL
 ```
 
-## Prerequisites
+Lambda only handles Bedrock — TestRail and Jira are called from the extension because they require Amazon's internal network (VPN). The background service worker bypasses browser CORS restrictions for the Jira call.
 
-- Java 17+
-- Maven 3.8+
-- AWS credentials configured (`~/.aws/credentials` or env vars) with Bedrock access in `us-west-2`
+---
 
-## Build
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Chrome Extension | MV3, content.js, background.js, options page |
+| AI Generation | AWS Bedrock — Claude 3 Sonnet (`anthropic.claude-3-sonnet-20240229-v1:0`) |
+| Backend | Java 17 + AWS Lambda (via SAM) |
+| Build | Maven (fat JAR via maven-shade-plugin) |
+| AWS SDK | AWS SDK v2 |
+| APIs | TestRail REST API, Jira REST API v2 |
+
+---
+
+## AWS Setup
+
+| Resource | Value |
+|---|---|
+| Account | BCX-GenAI-experiments (721937028696) |
+| Region | us-west-2 |
+| Lambda | `testcase-to-jira` |
+| API Endpoint | `https://p39n1seqxd.execute-api.us-west-2.amazonaws.com/generate-description` |
+| Bedrock Model | `anthropic.claude-3-sonnet-20240229-v1:0` |
+| IAM User | `Jira_to_TC` |
+
+---
+
+## Project Structure
+
+```
+TestcasetoJIRA/
+├── pom.xml
+├── template.yaml                        ← SAM template
+├── samconfig.toml
+├── chrome-extension/
+│   ├── manifest.json                    ← MV3, permissions + host_permissions
+│   ├── content.js                       ← Injects button, fetches TestRail, calls Lambda
+│   ├── background.js                    ← Handles Jira POST + auto token fetch (no CORS)
+│   ├── options.html                     ← Settings page
+│   ├── options.js                       ← Saves/loads credentials + auto-fetch token
+│   └── styles.css
+└── src/main/java/com/testrail/jira/
+    ├── LambdaHandler.java               ← API Gateway handler, Bedrock-only
+    ├── BedrockProcessor.java            ← Bedrock/Claude logic
+    └── resources/Jira_prompt.txt        ← Prompt template
+```
+
+---
+
+## Setup & Installation
+
+### 1. Deploy Lambda
 
 ```bash
-mvn clean package
-# Produces: target/testrail-to-jira-1.0.0.jar
+mvn clean package -DskipTests && sam deploy
 ```
 
-## Run
+### 2. Load Chrome Extension
 
-### API server (used by the Chrome extension)
-
-```bash
-java -jar target/testrail-to-jira-1.0.0.jar
-# Listening on http://localhost:5000
-```
-
-### Command line
-
-```bash
-java -cp target/testrail-to-jira-1.0.0.jar com.testrail.jira.Main <case_id> <step_no>
-# e.g.
-java -cp target/testrail-to-jira-1.0.0.jar com.testrail.jira.Main C12345 3
-```
-
-## Chrome extension
-
-1. Open Chrome → `chrome://extensions`
+1. Go to `chrome://extensions`
 2. Enable **Developer mode**
 3. Click **Load unpacked** → select the `chrome-extension/` folder
-4. Navigate to any TestRail case (`/cases/view/<id>`) — the **🐛 Create JIRA** button will appear
 
-## License
+### 3. Configure Settings
 
-Copyright © 2026 Anirudh S. Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
+1. Click the extension icon → **Options** (or right-click → Extension options)
+2. Fill in:
+   - **TestRail Email** — your Amazon email
+   - **TestRail API Key** — from TestRail profile settings
+   - **TestRail URL** — `https://testrail.p2r.amazon.dev`
+   - **Jira URL** — `https://issues.labcollab.net`
+   - **Jira Bearer Token** — click **🔄 Auto-fetch** (must be on VPN)
+   - **Jira Project Key** — e.g. `KRQ`
+3. Click **💾 Save Settings**
+
+---
+
+## Usage
+
+1. Connect to VPN (mwinit)
+2. Open any test case on TestRail
+3. Click **🐛 Create JIRA**
+4. Enter the failing step number
+5. Claude generates the bug title and description
+6. Jira issue is created automatically
+7. Success dialog shows the issue key and URL
+
+If a bug already exists for that test case, a warning dialog shows existing issues. Click **⚡ Force Create New Bug** to create another one for a different step.
+
+---
+
+## Refreshing the Jira Token
+
+The Jira LASSO token expires every 12 hours. To refresh:
+
+1. Open Extension Options
+2. Click **🔄 Auto-fetch** next to the Jira Bearer Token field
+3. Token is fetched from `kam.labcollab.net` and saved automatically
+
+Must be on VPN for this to work.
+
+---
+
+## Known Limitations
+
+- Jira token expires every 12 hours (auto-fetch handles this)
+- Duplicate prevention has a rare race condition if two testers click at the exact same millisecond (server-side lock not implemented)
+- Lambda must have IAM permissions for Bedrock in `us-west-2`
