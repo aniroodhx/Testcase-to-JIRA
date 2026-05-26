@@ -1,5 +1,5 @@
 # Testcase to JIRA
-Defect generation system
+### Defect generation system
 
 A Chrome extension that lets testers create Jira bugs from TestRail test cases with one click. Claude AI (AWS Bedrock, Claude 3 Sonnet) automatically generates the bug title and description from the failing test step.
 
