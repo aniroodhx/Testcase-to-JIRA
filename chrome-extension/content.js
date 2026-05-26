@@ -55,7 +55,7 @@ function injectButton() {
 
 async function createJiraIssue(caseId, stepNo, button) {
     try {
-        const response = await fetch('http://localhost:5000/create-jira-bug', {
+        const response = await fetch('https://44.255.82.146/create-jira-bug', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ case_id: caseId, step_no: stepNo })
