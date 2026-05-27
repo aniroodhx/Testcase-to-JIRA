@@ -59,6 +59,24 @@ Lambda only handles Bedrock — TestRail and Jira are called from the extension 
 
 ---
 
+## Team Installation (No Setup Required)
+
+The backend (AWS Lambda) is already hosted — teammates only need the Chrome extension.
+
+1. **Download** — [Click here to download the repo as ZIP](https://github.com/aniroodhx/Testcase-to-JIRA/archive/refs/heads/main.zip), unzip it
+2. **Load Extension** — Go to `chrome://extensions` → Enable **Developer mode** → Click **Load unpacked** → select the `chrome-extension/` folder
+3. **Configure** — Click the extension icon → **Options**, fill in:
+   - TestRail Email + API Key
+   - TestRail URL (`https://testrail.p2r.amazon.dev`)
+   - Jira URL (`https://issues.labcollab.net`)
+   - Jira Project Key (e.g. `KRQ`)
+   - Click **🔄 Auto-fetch** for the Jira token (must be on VPN)
+4. **Connect to VPN** (mwinit) before using
+
+That's it. No Python, no Java, no server to run.
+
+---
+
 ## Project Structure
 
 ```
