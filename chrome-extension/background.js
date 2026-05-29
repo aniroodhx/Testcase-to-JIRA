@@ -1,63 +1,136 @@
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+const api = typeof browser !== 'undefined' ? browser : chrome;
 
-    // ── Auto-fetch Jira token from KAM ─────────────────────────────────────
-    if (message.type === 'FETCH_JIRA_TOKEN') {
-        // Step 1: Open the KAM token page in a hidden tab
-        chrome.tabs.create(
-            { url: 'https://kam.labcollab.net/lasso_access_token', active: false },
-            (tab) => {
-                const tabId = tab.id;
+const TOKEN_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const KAM_TOKEN_URL = 'https://kam.labcollab.net/lasso_access_token';
 
-                // Step 2: Wait for the page to load, then submit the generate form
-                chrome.tabs.onUpdated.addListener(function listener(updatedTabId, info) {
-                    if (updatedTabId !== tabId || info.status !== 'complete') return;
-                    chrome.tabs.onUpdated.removeListener(listener);
+// ── Auto token refresh on startup ──────────────────────────────────────────
+async function checkAndRefreshToken() {
+    try {
+        const result = await api.storage.local.get(['jira_api_token', 'jira_token_fetched_at']);
+        const fetchedAt = result.jira_token_fetched_at || 0;
+        const age = Date.now() - fetchedAt;
 
-                    chrome.scripting.executeScript({
+        if (!result.jira_api_token || age > TOKEN_REFRESH_INTERVAL_MS) {
+            console.log('[TokenRefresh] Token missing or older than 6h — auto-fetching...');
+            fetchTokenSilently();
+        } else {
+            const remaining = Math.round((TOKEN_REFRESH_INTERVAL_MS - age) / 60000);
+            console.log(`[TokenRefresh] Token is fresh — next refresh in ~${remaining} min`);
+        }
+    } catch (e) {
+        console.log('[TokenRefresh] Storage read failed:', e.message);
+    }
+}
+
+function fetchTokenSilently() {
+    api.tabs.create({ url: KAM_TOKEN_URL, active: false }, (tab) => {
+        const tabId = tab.id;
+
+        api.tabs.onUpdated.addListener(function listener(updatedTabId, info) {
+            if (updatedTabId !== tabId || info.status !== 'complete') return;
+            api.tabs.onUpdated.removeListener(listener);
+
+            api.scripting.executeScript({
+                target: { tabId },
+                func: () => {
+                    const form = document.querySelector('form');
+                    if (form) form.submit();
+                    return 'submitted';
+                }
+            }, () => {
+                api.tabs.onUpdated.addListener(function callbackListener(cbTabId, cbInfo) {
+                    if (cbTabId !== tabId || cbInfo.status !== 'complete') return;
+                    api.tabs.onUpdated.removeListener(callbackListener);
+
+                    api.scripting.executeScript({
                         target: { tabId },
                         func: () => {
-                            // Submit the generate token form
-                            const form = document.querySelector('form');
-                            if (form) form.submit();
-                            return 'submitted';
+                            const el = document.getElementById('access_token');
+                            return el ? el.value : null;
                         }
-                    }, () => {
-                        // Step 3: Wait for callback page to load, then extract token
-                        chrome.tabs.onUpdated.addListener(function callbackListener(cbTabId, cbInfo) {
-                            if (cbTabId !== tabId || cbInfo.status !== 'complete') return;
-                            chrome.tabs.onUpdated.removeListener(callbackListener);
-
-                            chrome.scripting.executeScript({
-                                target: { tabId },
-                                func: () => {
-                                    const el = document.getElementById('access_token');
-                                    return el ? el.value : null;
-                                }
-                            }, (results) => {
-                                chrome.tabs.remove(tabId);
-                                const token = results?.[0]?.result;
-                                if (token) {
-                                    sendResponse({ token });
-                                } else {
-                                    sendResponse({ error: 'Token not found on KAM page — are you on VPN?' });
-                                }
+                    }, (results) => {
+                        api.tabs.remove(tabId);
+                        const token = results?.[0]?.result;
+                        if (token) {
+                            api.storage.local.set({
+                                jira_api_token: token,
+                                jira_token_fetched_at: Date.now()
+                            }, () => {
+                                console.log('[TokenRefresh] Token auto-refreshed successfully');
                             });
+                        } else {
+                            console.log('[TokenRefresh] Token not found on KAM page — user may not be on VPN');
+                        }
+                    });
+                });
+            });
+        });
+    });
+}
+
+// Run on startup
+checkAndRefreshToken();
+
+// Schedule refresh every 6 hours
+setInterval(checkAndRefreshToken, TOKEN_REFRESH_INTERVAL_MS);
+
+// ── Message handlers ────────────────────────────────────────────────────────
+api.runtime.onMessage.addListener((message, sender, sendResponse) => {
+
+    // Manual token fetch (from Options page button)
+    if (message.type === 'FETCH_JIRA_TOKEN') {
+        api.tabs.create({ url: KAM_TOKEN_URL, active: false }, (tab) => {
+            const tabId = tab.id;
+
+            api.tabs.onUpdated.addListener(function listener(updatedTabId, info) {
+                if (updatedTabId !== tabId || info.status !== 'complete') return;
+                api.tabs.onUpdated.removeListener(listener);
+
+                api.scripting.executeScript({
+                    target: { tabId },
+                    func: () => {
+                        const form = document.querySelector('form');
+                        if (form) form.submit();
+                        return 'submitted';
+                    }
+                }, () => {
+                    api.tabs.onUpdated.addListener(function callbackListener(cbTabId, cbInfo) {
+                        if (cbTabId !== tabId || cbInfo.status !== 'complete') return;
+                        api.tabs.onUpdated.removeListener(callbackListener);
+
+                        api.scripting.executeScript({
+                            target: { tabId },
+                            func: () => {
+                                const el = document.getElementById('access_token');
+                                return el ? el.value : null;
+                            }
+                        }, (results) => {
+                            api.tabs.remove(tabId);
+                            const token = results?.[0]?.result;
+                            if (token) {
+                                api.storage.local.set({
+                                    jira_api_token: token,
+                                    jira_token_fetched_at: Date.now()
+                                }, () => sendResponse({ token }));
+                            } else {
+                                sendResponse({ error: 'Token not found on KAM page — are you on VPN?' });
+                            }
                         });
                     });
                 });
-            }
-        );
-        return true; // async
+            });
+        });
+        return true;
     }
 
-    // ── Search Jira for existing bug by case label ──────────────────────────
+    // ── Search Jira for existing bugs by case label ─────────────────────────
     if (message.type === 'SEARCH_JIRA') {
         const { jiraUrl, jiraToken, jiraProject, caseId } = message;
         const label = 'TC-' + caseId;
         const jql = encodeURIComponent(
             `project = "${jiraProject}" AND labels = "${label}" ORDER BY created DESC`
         );
-        const url = jiraUrl.replace(/\/$/, '') + '/rest/api/2/search?jql=' + jql + '&maxResults=5&fields=summary,status,labels';
+        const url = jiraUrl.replace(/\/$/, '') + '/rest/api/2/search?jql=' + jql + '&maxResults=10&fields=summary,status,labels';
 
         fetch(url, {
             headers: {
@@ -70,22 +143,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             if (!res.ok) {
                 sendResponse({ error: 'Jira search error ' + res.status });
             } else {
-                const issues = (body.issues || []).map(i => ({
-                    key: i.key,
-                    summary: i.fields.summary,
-                    status: i.fields.status.name
-                }));
+                const issues = (body.issues || []).map(i => {
+                    const labels = i.fields.labels || [];
+                    const stepLabel = labels.find(l => l.match(/^TC-\d+-S\d+$/));
+                    const stepNo = stepLabel ? stepLabel.split('-S')[1] : null;
+                    return {
+                        key: i.key,
+                        summary: i.fields.summary,
+                        status: i.fields.status.name,
+                        stepNo
+                    };
+                });
                 sendResponse({ issues });
             }
         })
         .catch(err => sendResponse({ error: err.message }));
-
         return true;
     }
 
     // ── Create new Jira bug ─────────────────────────────────────────────────
     if (message.type === 'CREATE_JIRA') {
-        const { jiraUrl, jiraToken, jiraProject, caseId, bugTitle, description } = message;
+        const { jiraUrl, jiraToken, jiraProject, caseId, stepNo, bugTitle, description } = message;
+        const labels = ['automated_creation', 'TC-' + caseId, 'TC-' + caseId + '-S' + stepNo];
 
         fetch(jiraUrl.replace(/\/$/, '') + '/rest/api/2/issue', {
             method: 'POST',
@@ -99,7 +178,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     summary: bugTitle,
                     description: description,
                     issuetype: { name: 'Bug' },
-                    labels: ['automated_creation', 'TC-' + caseId]
+                    labels
                 }
             })
         })
@@ -112,7 +191,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
         })
         .catch(err => sendResponse({ error: err.message }));
-
         return true;
     }
 });

@@ -17,7 +17,9 @@
     "https://p39n1seqxd.execute-api.us-west-2.amazonaws.com/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "scripts": ["background.js"],
+    "type": "module"
   },
   "content_scripts": [
     {
@@ -29,5 +31,11 @@
       "css": ["styles.css"]
     }
   ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "testrail-jira@amazon",
+      "strict_min_version": "109.0"
+    }
+  },
   "options_page": "options.html"
 }

@@ -18,10 +18,11 @@
     #status.success { color: #00875A; }
     #status.error { color: #DE350B; }
     .hint { font-size: 11px; color: #888; margin-top: 3px; }
+    .auto-badge { display: inline-block; background: #E3FCEF; color: #00875A; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 3px; margin-left: 6px; border: 1px solid #ABF5D1; }
   </style>
 </head>
 <body>
-  <h2>⚙️ TestRail to Jira Settings</h2>
+  <h2>TestRail to Jira Settings</h2>
 
   <label>TestRail Email</label>
   <input id="testrail_email" type="email" placeholder="you@amazon.com" />
@@ -35,17 +36,20 @@
   <label>Jira URL</label>
   <input id="jira_url" type="text" placeholder="https://issues.labcollab.net" />
 
-  <label>Jira Bearer Token</label>
+  <label>
+    Jira Bearer Token
+    <span class="auto-badge">Auto-refreshes every 6h</span>
+  </label>
   <div class="token-row">
-    <input id="jira_api_token" type="password" placeholder="Your Jira Bearer token (expires every 12h)" />
-    <button class="fetch-token-btn" id="get-token-btn">🔄 Auto-fetch</button>
+    <input id="jira_api_token" type="password" placeholder="Auto-fetched on startup — must be on VPN" />
+    <button class="fetch-token-btn" id="get-token-btn">Force Refresh</button>
   </div>
-  <div class="hint" id="token-hint">Must be on VPN. Fetches and saves token automatically.</div>
+  <div class="hint" id="token-hint">Auto-refreshes every 6h when on VPN. Click to force refresh immediately.</div>
 
   <label>Jira Project Key</label>
   <input id="jira_project" type="text" placeholder="e.g. KRQ" />
 
-  <button id="save-btn">💾 Save Settings</button>
+  <button id="save-btn">Save Settings</button>
   <div id="status"></div>
 
   <script src="options.js"></script>

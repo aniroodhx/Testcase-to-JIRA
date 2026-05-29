@@ -1,3 +1,4 @@
+const api = typeof browser !== 'undefined' ? browser : chrome;
 const LAMBDA_URL = 'https://p39n1seqxd.execute-api.us-west-2.amazonaws.com/generate-description';
 
 function extractCaseId() {
@@ -7,7 +8,7 @@ function extractCaseId() {
 
 async function loadCredentials() {
     return new Promise((resolve) => {
-        chrome.storage.local.get(
+        api.storage.local.get(
             ['testrail_email', 'testrail_api_key', 'testrail_url', 'jira_url', 'jira_api_token', 'jira_project'],
             resolve
         );
@@ -117,35 +118,35 @@ async function callLambda(testCase, step) {
     return response.json();
 }
 
-// Search Jira for existing bugs tagged with this test case
 async function searchJira(caseId, creds) {
     return new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage({
+        api.runtime.sendMessage({
             type: 'SEARCH_JIRA',
             jiraUrl: creds.jira_url,
             jiraToken: creds.jira_api_token,
             jiraProject: creds.jira_project || 'KRQ',
             caseId
         }, (response) => {
-            if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+            if (api.runtime.lastError) reject(new Error(api.runtime.lastError.message));
             else if (response.error) reject(new Error(response.error));
-            else resolve(response.issues); // array of { key, summary, status }
+            else resolve(response.issues);
         });
     });
 }
 
-async function postToJira(caseId, bugTitle, description, creds) {
+async function postToJira(caseId, stepNo, bugTitle, description, creds) {
     return new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage({
+        api.runtime.sendMessage({
             type: 'CREATE_JIRA',
             jiraUrl: creds.jira_url,
             jiraToken: creds.jira_api_token,
             jiraProject: creds.jira_project || 'KRQ',
             caseId,
+            stepNo,
             bugTitle,
             description
         }, (response) => {
-            if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+            if (api.runtime.lastError) reject(new Error(api.runtime.lastError.message));
             else if (response.error) reject(new Error(response.error));
             else resolve(response);
         });
@@ -159,19 +160,26 @@ async function handleCreateJira(caseId, stepNo, button) {
             throw new Error('Credentials not set — right-click the extension and open Options');
         }
 
-        // Step 1: Check for existing bugs on this test case
         button.textContent = '⏳ Checking for duplicates...';
         const existingIssues = await searchJira(caseId, creds);
 
         if (existingIssues.length > 0) {
-            // Show duplicate warning — let tester decide
-            button.disabled = false;
-            button.textContent = '🐛 Create JIRA';
-            showDuplicateDialog(existingIssues, creds, caseId, stepNo, button);
+            // Check if any existing bug is for the exact same step
+            const sameStepIssue = existingIssues.find(i => i.stepNo === String(stepNo));
+            if (sameStepIssue) {
+                // Same step — show strong warning before allowing force create
+                button.disabled = false;
+                button.textContent = '🐛 Create JIRA';
+                showSameStepWarning(sameStepIssue, existingIssues, creds, caseId, stepNo, button);
+            } else {
+                // Different step — show normal duplicate dialog
+                button.disabled = false;
+                button.textContent = '🐛 Create JIRA';
+                showDuplicateDialog(existingIssues, creds, caseId, stepNo, button);
+            }
             return;
         }
 
-        // Step 2: No duplicates — proceed
         await createJiraIssue(caseId, stepNo, button, creds);
 
     } catch (error) {
@@ -192,7 +200,7 @@ async function createJiraIssue(caseId, stepNo, button, creds) {
     const { bug_title, description } = await callLambda(testCase, step);
 
     button.textContent = '⏳ Creating Jira issue...';
-    const issue = await postToJira(caseId, bug_title, description, creds);
+    const issue = await postToJira(caseId, stepNo, bug_title, description, creds);
 
     const issueKey = issue.key;
     const issueUrl = creds.jira_url.replace(/\/$/, '') + '/browse/' + issueKey;
@@ -203,28 +211,72 @@ async function createJiraIssue(caseId, stepNo, button, creds) {
     button.style.background = '#00875A';
 }
 
-// Duplicate found dialog — shows existing bugs, offers Force Create for different steps
+// Same step warning — stronger confirmation required
+function showSameStepWarning(sameStepIssue, allIssues, creds, caseId, stepNo, button) {
+    const jiraBase = creds.jira_url.replace(/\/$/, '');
+
+    const dialog = document.createElement('div');
+    dialog.id = 'same-step-warning-dialog';
+    dialog.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:25px; border-radius:8px; box-shadow:0 4px 25px rgba(0,0,0,0.5); z-index:10000; width:500px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; border-top: 4px solid #DE350B;';
+    dialog.innerHTML =
+        `<h3 style="margin:0 0 8px 0; color:#DE350B; font-size:17px; font-weight:600;">🚨 Bug Already Exists for Step ${stepNo}</h3>
+        <p style="margin:0 0 14px 0; color:#555; font-size:13px;">A Jira bug was already created for <strong>Step ${stepNo}</strong> of case <strong>C${caseId}</strong>:</p>
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px; padding:10px; background:#FFF3F3; border-radius:4px; border:1px solid #FFCDD2;">
+            <span style="background:#DE350B; color:white; padding:2px 8px; border-radius:3px; font-size:12px; font-weight:bold; white-space:nowrap;">${sameStepIssue.key}</span>
+            <span style="flex:1; font-size:13px; color:#333;">${sameStepIssue.summary}</span>
+            <span style="font-size:11px; color:#666; white-space:nowrap;">${sameStepIssue.status}</span>
+            <a href="${jiraBase}/browse/${sameStepIssue.key}" target="_blank" style="color:#0052CC; font-size:12px; white-space:nowrap;">Open ↗</a>
+        </div>
+        <p style="margin:0 0 16px 0; color:#DE350B; font-size:13px; font-weight:bold;">⚠️ Are you sure you want to create another bug for the same step?</p>
+        <div style="display:flex; gap:10px;">
+            <button id="confirm-same-step-btn" style="flex:1; padding:11px; background:#DE350B; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:13px;">Yes, Force Create Anyway</button>
+            <button id="cancel-same-step-btn" style="flex:1; padding:11px; background:#6B778C; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:13px;">Cancel</button>
+        </div>`;
+
+    document.body.appendChild(dialog);
+
+    document.getElementById('confirm-same-step-btn').onclick = async () => {
+        dialog.remove();
+        button.disabled = true;
+        button.textContent = '⏳ Starting...';
+        try {
+            await createJiraIssue(caseId, stepNo, button, creds);
+        } catch (error) {
+            alert('❌ Error: ' + error.message);
+            button.disabled = false;
+            button.textContent = '🐛 Create JIRA';
+        }
+    };
+
+    document.getElementById('cancel-same-step-btn').onclick = () => dialog.remove();
+}
+
+// Different step duplicate dialog — shows existing bugs with their step numbers
 function showDuplicateDialog(issues, creds, caseId, stepNo, button) {
     const jiraBase = creds.jira_url.replace(/\/$/, '');
 
-    const issueRows = issues.map(i =>
-        `<div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; padding:8px; background:#f4f5f7; border-radius:4px;">
+    const issueRows = issues.map(i => {
+        const stepBadge = i.stepNo
+            ? `<span style="background:#6B778C; color:white; padding:2px 6px; border-radius:3px; font-size:11px; white-space:nowrap;">Step ${i.stepNo}</span>`
+            : '';
+        return `<div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; padding:8px; background:#f4f5f7; border-radius:4px;">
             <span style="background:#0052CC; color:white; padding:2px 8px; border-radius:3px; font-size:12px; font-weight:bold; white-space:nowrap;">${i.key}</span>
+            ${stepBadge}
             <span style="flex:1; font-size:13px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${i.summary}">${i.summary}</span>
             <span style="font-size:11px; color:#666; white-space:nowrap;">${i.status}</span>
             <a href="${jiraBase}/browse/${i.key}" target="_blank" style="color:#0052CC; font-size:12px; white-space:nowrap;">Open ↗</a>
-        </div>`
-    ).join('');
+        </div>`;
+    }).join('');
 
     const dialog = document.createElement('div');
     dialog.id = 'duplicate-dialog';
-    dialog.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:25px; border-radius:8px; box-shadow:0 4px 25px rgba(0,0,0,0.4); z-index:10000; width:520px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
+    dialog.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:25px; border-radius:8px; box-shadow:0 4px 25px rgba(0,0,0,0.4); z-index:10000; width:540px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
     dialog.innerHTML =
         `<h3 style="margin:0 0 6px 0; color:#FF8B00; font-size:17px; font-weight:600;">⚠️ Existing Bug${issues.length > 1 ? 's' : ''} Found for This Test Case</h3>
-        <p style="margin:0 0 14px 0; color:#555; font-size:13px;">A Jira bug already exists for <strong>C${caseId}</strong>. Is this a different step?</p>
+        <p style="margin:0 0 14px 0; color:#555; font-size:13px;">Bugs already exist for <strong>C${caseId}</strong> (different steps). You're creating for <strong>Step ${stepNo}</strong>.</p>
         <div style="margin-bottom:16px;">${issueRows}</div>
         <div style="display:flex; gap:10px;">
-            <button id="force-create-btn" style="flex:1; padding:11px; background:#FF8B00; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:13px;">⚡ Force Create New Bug</button>
+            <button id="force-create-btn" style="flex:1; padding:11px; background:#FF8B00; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:13px;">⚡ Create for Step ${stepNo}</button>
             <button id="cancel-duplicate-btn" style="flex:1; padding:11px; background:#6B778C; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:13px;">Cancel</button>
         </div>`;
 
