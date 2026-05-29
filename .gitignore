@@ -2,3 +2,4 @@ target/
 credentials.json
 *.class
 .DS_Storesamconfig.toml
+samconfig.toml
