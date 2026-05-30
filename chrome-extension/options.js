@@ -36,11 +36,11 @@ document.getElementById('get-token-btn').onclick = () => {
         btn.textContent = 'Force Refresh';
         if (response?.token) {
             document.getElementById('jira_api_token').value = response.token;
-            hint.textContent = 'Auto-refreshes every 6h — just fetched now. Click to force refresh.';
+            hint.textContent = 'Auto-refreshes every 6h, just fetched now. Click to force refresh.';
             showStatus('Token fetched and saved!');
         } else {
-            hint.textContent = 'Auto-refreshes every 6h — must be on VPN.';
-            showStatus('❌ ' + (response?.error || 'Failed — are you on VPN?'), true);
+            hint.textContent = 'Auto-refreshes every 6h, must be on VPN.';
+            showStatus('❌ ' + (response?.error || 'Failed, are you on VPN?'), true);
         }
     });
 };

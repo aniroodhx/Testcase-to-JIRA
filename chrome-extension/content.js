@@ -90,7 +90,9 @@ function extractStep(testCase, stepNoStr) {
     throw new Error('Step ' + stepNoStr + ' not found in test case');
 }
 
-async function callLambda(testCase, step) {
+// Lambda call — passes LASSO token as X-Lasso-Token header for Amazon identity verification
+// Only YubiKey-authenticated Amazon employees can produce a valid LASSO token
+async function callLambda(testCase, step, creds) {
     const rawFilePath = testCase.custom_filepath || testCase.file_path || '';
     const filePath = rawFilePath.replace(/!\[\]\([^)]*\)/g, '').trim();
     const platform = testCase.custom_platform || '[Filled by tester]';
@@ -107,9 +109,16 @@ async function callLambda(testCase, step) {
 
     const response = await fetch(LAMBDA_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Lasso-Token': creds.jira_api_token  // LASSO token = Amazon Midway identity proof
+        },
         body: JSON.stringify(payload)
     });
+
+    if (response.status === 401 || response.status === 403) {
+        throw new Error('Amazon auth failed — your Midway token may have expired. Open Options and click Force Refresh.');
+    }
 
     if (!response.ok) {
         const err = await response.json().catch(() => ({}));
@@ -164,15 +173,12 @@ async function handleCreateJira(caseId, stepNo, button) {
         const existingIssues = await searchJira(caseId, creds);
 
         if (existingIssues.length > 0) {
-            // Check if any existing bug is for the exact same step
             const sameStepIssue = existingIssues.find(i => i.stepNo === String(stepNo));
             if (sameStepIssue) {
-                // Same step — show strong warning before allowing force create
                 button.disabled = false;
                 button.textContent = '🐛 Create JIRA';
                 showSameStepWarning(sameStepIssue, existingIssues, creds, caseId, stepNo, button);
             } else {
-                // Different step — show normal duplicate dialog
                 button.disabled = false;
                 button.textContent = '🐛 Create JIRA';
                 showDuplicateDialog(existingIssues, creds, caseId, stepNo, button);
@@ -197,7 +203,7 @@ async function createJiraIssue(caseId, stepNo, button, creds) {
 
     button.textContent = '⏳ Generating with Claude...';
     const step = extractStep(testCase, stepNo);
-    const { bug_title, description } = await callLambda(testCase, step);
+    const { bug_title, description } = await callLambda(testCase, step, creds);
 
     button.textContent = '⏳ Creating Jira issue...';
     const issue = await postToJira(caseId, stepNo, bug_title, description, creds);
@@ -211,10 +217,8 @@ async function createJiraIssue(caseId, stepNo, button, creds) {
     button.style.background = '#00875A';
 }
 
-// Same step warning — stronger confirmation required
 function showSameStepWarning(sameStepIssue, allIssues, creds, caseId, stepNo, button) {
     const jiraBase = creds.jira_url.replace(/\/$/, '');
-
     const dialog = document.createElement('div');
     dialog.id = 'same-step-warning-dialog';
     dialog.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:25px; border-radius:8px; box-shadow:0 4px 25px rgba(0,0,0,0.5); z-index:10000; width:500px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; border-top: 4px solid #DE350B;';
@@ -232,29 +236,19 @@ function showSameStepWarning(sameStepIssue, allIssues, creds, caseId, stepNo, bu
             <button id="confirm-same-step-btn" style="flex:1; padding:11px; background:#DE350B; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:13px;">Yes, Force Create Anyway</button>
             <button id="cancel-same-step-btn" style="flex:1; padding:11px; background:#6B778C; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:13px;">Cancel</button>
         </div>`;
-
     document.body.appendChild(dialog);
-
     document.getElementById('confirm-same-step-btn').onclick = async () => {
         dialog.remove();
         button.disabled = true;
         button.textContent = '⏳ Starting...';
-        try {
-            await createJiraIssue(caseId, stepNo, button, creds);
-        } catch (error) {
-            alert('❌ Error: ' + error.message);
-            button.disabled = false;
-            button.textContent = '🐛 Create JIRA';
-        }
+        try { await createJiraIssue(caseId, stepNo, button, creds); }
+        catch (error) { alert('❌ Error: ' + error.message); button.disabled = false; button.textContent = '🐛 Create JIRA'; }
     };
-
     document.getElementById('cancel-same-step-btn').onclick = () => dialog.remove();
 }
 
-// Different step duplicate dialog — shows existing bugs with their step numbers
 function showDuplicateDialog(issues, creds, caseId, stepNo, button) {
     const jiraBase = creds.jira_url.replace(/\/$/, '');
-
     const issueRows = issues.map(i => {
         const stepBadge = i.stepNo
             ? `<span style="background:#6B778C; color:white; padding:2px 6px; border-radius:3px; font-size:11px; white-space:nowrap;">Step ${i.stepNo}</span>`
@@ -267,7 +261,6 @@ function showDuplicateDialog(issues, creds, caseId, stepNo, button) {
             <a href="${jiraBase}/browse/${i.key}" target="_blank" style="color:#0052CC; font-size:12px; white-space:nowrap;">Open ↗</a>
         </div>`;
     }).join('');
-
     const dialog = document.createElement('div');
     dialog.id = 'duplicate-dialog';
     dialog.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:25px; border-radius:8px; box-shadow:0 4px 25px rgba(0,0,0,0.4); z-index:10000; width:540px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
@@ -279,22 +272,12 @@ function showDuplicateDialog(issues, creds, caseId, stepNo, button) {
             <button id="force-create-btn" style="flex:1; padding:11px; background:#FF8B00; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:13px;">⚡ Create for Step ${stepNo}</button>
             <button id="cancel-duplicate-btn" style="flex:1; padding:11px; background:#6B778C; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:13px;">Cancel</button>
         </div>`;
-
     document.body.appendChild(dialog);
-
     document.getElementById('force-create-btn').onclick = async () => {
-        dialog.remove();
-        button.disabled = true;
-        button.textContent = '⏳ Starting...';
-        try {
-            await createJiraIssue(caseId, stepNo, button, creds);
-        } catch (error) {
-            alert('❌ Error: ' + error.message);
-            button.disabled = false;
-            button.textContent = '🐛 Create JIRA';
-        }
+        dialog.remove(); button.disabled = true; button.textContent = '⏳ Starting...';
+        try { await createJiraIssue(caseId, stepNo, button, creds); }
+        catch (error) { alert('❌ Error: ' + error.message); button.disabled = false; button.textContent = '🐛 Create JIRA'; }
     };
-
     document.getElementById('cancel-duplicate-btn').onclick = () => dialog.remove();
 }
 
