@@ -21,7 +21,7 @@ Resources:
             Effect: Allow
             Action:
               - bedrock:InvokeModel
-            Resource: arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0
+            Resource: arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-sonnet-4-20250514-v1:0
       Events:
         GenerateDescription:
           Type: HttpApi

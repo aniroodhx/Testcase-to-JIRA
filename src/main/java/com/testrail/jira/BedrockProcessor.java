@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 
 public class BedrockProcessor {
 
-    private static final String MODEL_ID = "anthropic.claude-3-sonnet-20240229-v1:0";
+    private static final String MODEL_ID = "anthropic.claude-sonnet-4-20250514-v1:0";
     private static final Gson GSON = new Gson();
 
     private final BedrockRuntimeClient bedrock;

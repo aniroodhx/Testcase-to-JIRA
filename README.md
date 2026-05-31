@@ -1,13 +1,13 @@
 # Testcase to JIRA
 ### Defect generation system
 
-A Chrome extension that lets testers create Jira bugs from TestRail test cases with one click. Claude AI (AWS Bedrock, Claude 3 Sonnet) automatically generates the bug title and description from the failing test step.
+A Chrome extension that lets testers create Jira bugs from TestRail test cases with one click. Claude AI (AWS Bedrock, Claude 4 Sonnet) automatically generates the bug title and description from the failing test step.
 
 ---
 
 ## Features
 
-- ✅ **AI-generated bug reports** — Claude 3 Sonnet generates the bug title and full Jira description from the TestRail test case and failing step
+- ✅ **AI-generated bug reports** — Claude 4 Sonnet generates the bug title and full Jira description from the TestRail test case and failing step
 - ✅ **One-click Jira creation** — no copy-pasting, no manual formatting
 - ✅ **Auto Jira token fetch** — fetches your LASSO token from KAM automatically (must be on VPN)
 - ✅ **Duplicate prevention** — searches Jira before creating; shows existing bugs and offers Force Create for different steps
@@ -24,7 +24,7 @@ Chrome Extension (user on VPN/mwinit)
     │
     ├── 1. Fetch TestRail case       → directly from browser (VPN)
     ├── 2. POST test case data       → AWS Lambda
-    │         └── Bedrock (Claude 3 Sonnet) generates bug_title + description
+    │         └── Bedrock (Claude 4 Sonnet) generates bug_title + description
     ├── 3. POST to Jira              → background service worker (VPN, no CORS)
     └── 4. Show success dialog with Jira URL
 ```
@@ -38,7 +38,7 @@ Lambda only handles Bedrock — TestRail and Jira are called from the extension 
 | Layer | Technology |
 |---|---|
 | Chrome Extension | MV3, content.js, background.js, options page |
-| AI Generation | AWS Bedrock — Claude 3 Sonnet (`anthropic.claude-3-sonnet-20240229-v1:0`) |
+| AI Generation | AWS Bedrock — Claude 4 Sonnet (`anthropic.claude-sonnet-4-20250514-v1:0`) |
 | Backend | Java 17 + AWS Lambda (via SAM) |
 | Build | Maven (fat JAR via maven-shade-plugin) |
 | AWS SDK | AWS SDK v2 |
@@ -54,7 +54,7 @@ Lambda only handles Bedrock — TestRail and Jira are called from the extension 
 | Region | us-west-2 |
 | Lambda | `testcase-to-jira` |
 | API Endpoint | `https://p39n1seqxd.execute-api.us-west-2.amazonaws.com/generate-description` |
-| Bedrock Model | `anthropic.claude-3-sonnet-20240229-v1:0` |
+| Bedrock Model | `anthropic.claude-sonnet-4-20250514-v1:0` |
 | IAM User | `Jira_to_TC` |
 
 ---
