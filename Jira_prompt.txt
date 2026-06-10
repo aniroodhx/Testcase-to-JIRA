@@ -2,7 +2,8 @@ Generate a detailed JIRA bug report using the test case details:
 
 Test Case Details:
 Title: {title}
-Steps: {step_content}
+Failing Step: {step_content}
+All Steps: {all_steps}
 Expected Result: {expected}
 Test Case ID: {case_id}
 Device: {platform}
@@ -32,47 +33,27 @@ Examples for NEGATIVE test cases (expected behavior is something should NOT happ
 - CORRECT TITLE: "Table Viewer - White space can be created inside table viewer" (describes the bug)
 - WRONG TITLE: "Table Viewer - Unable to create white space inside table viewer" (describes correct behavior)
 
-- Step: "Attempt to delete system files"
-- Expected: "System files should not be deletable"
-- CORRECT TITLE: "File Management - System files can be deleted by user" (describes the bug)
-- WRONG TITLE: "File Management - Unable to delete system files" (describes correct behavior)
-
 Examples for POSITIVE test cases (expected behavior is something should happen):
 - Step: "Open Pdoc and do highlight on page"
 - Expected: "Highlighted colors should same as LR books"
 - CORRECT TITLE: "Highlight Feature - Highlighted colors not as bright as LR books" (describes the bug)
 
-- Step: "Long press on link to preview"
-- Expected: "Preview should display"
-- CORRECT TITLE: "Link Previewer - Preview fails to display on long press" (describes the bug)
-
-More perfect examples:
-- "Highlight Feature - Highlighted colors not as bright as LR books"
-- "Table Viewer - White space can be created inside table viewer"
-- "Page Navigation - Bookmark icon remains visible after deletion"
-- "Search Function - Search results show duplicates for special characters"
-
-Bad examples (NEVER use these patterns):
-- "Unable to create white space" (when expected is it shouldn't be created)
-- "Highlight Feature - Issue with colors"
-- "Preview not working"
-- "Table viewer problem"
-
 The title must describe THE ACTUAL BUG, not the correct/expected behavior.]
 
-*Caught by:* [Filled by tester]
+*Caught by:* Testcase execution
 *Found in ASIN:* {file_path}
 *Repro rate:* [Filled by tester]
 *Issue found in Platform:* {platform}
 *Device Specific (Yes/No):* [Filled by tester]
 *Issue specific to Capability:* [Filled by tester]
 *Test Account:* [Filled by tester]
+*Related Testcase:* {testrail_url}
 
 *Build & Device used:*
 [Filled by tester]
 
 *Steps to Reproduce:*
-{step_content}
+{all_steps}
 
 *Actual Result:* [YOU MUST generate this as a real sentence based on the step and expected result. Do NOT leave as a placeholder. If expected says "should X" then write "X does not happen". If expected says "should NOT X" then write "X happens unexpectedly".]
 
@@ -86,7 +67,7 @@ Guidelines:
 • Title must NOT include [CRITICAL] or any prefix tag
 • For "should NOT" cases, the bug is when it DOES happen
 • For "should" cases, the bug is when it DOESN'T happen
-• Steps to Reproduce: copy {step_content} exactly, do not reformat or renumber
+• Steps to Reproduce: copy {all_steps} exactly, include all steps from the test case
 • Actual Result MUST be a real generated sentence — never a placeholder or bracket text
 • Expected Result must be a single concise line from the test case expected result
 • Use clear, technical language

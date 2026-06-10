@@ -34,17 +34,20 @@ public class BedrockProcessor {
         }
     }
 
-    public String generate(String title, String stepContent, String expected,
-                           String platform, String filePath, String caseId, String stepNumber) {
+    public String generate(String title, String stepContent, String allSteps, String expected,
+                           String platform, String filePath, String caseId, String stepNumber,
+                           String testrailUrl) {
         try {
             String prompt = promptTemplate
                     .replace("{title}", title)
                     .replace("{step_content}", stepContent)
+                    .replace("{all_steps}", allSteps.isEmpty() ? stepContent : allSteps)
                     .replace("{expected}", expected)
                     .replace("{platform}", platform.isEmpty() ? "[Filled by tester]" : platform)
                     .replace("{file_path}", filePath)
                     .replace("{case_id}", caseId)
-                    .replace("{step_number}", stepNumber);
+                    .replace("{step_number}", stepNumber)
+                    .replace("{testrail_url}", testrailUrl.isEmpty() ? "" : testrailUrl);
 
             JsonObject body = new JsonObject();
             body.addProperty("anthropic_version", "bedrock-2023-05-31");

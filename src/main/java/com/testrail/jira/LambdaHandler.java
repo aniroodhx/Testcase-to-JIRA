@@ -32,7 +32,6 @@ public class LambdaHandler implements RequestHandler<APIGatewayProxyRequestEvent
                 "Content-Type", "application/json"
         );
 
-        // Handle OPTIONS preflight
         String httpMethod = event.getHttpMethod();
         if (httpMethod == null || httpMethod.isBlank()) {
             Map<String, String> headers = event.getHeaders();
@@ -48,7 +47,7 @@ public class LambdaHandler implements RequestHandler<APIGatewayProxyRequestEvent
         }
 
         try {
-            // ── Step 1: Verify Amazon identity via LASSO JWT ─────────────────
+            // ── Verify Amazon identity via LASSO JWT ─────────────────────────
             Map<String, String> requestHeaders = event.getHeaders();
             String lassoToken = requestHeaders != null
                     ? requestHeaders.getOrDefault("x-lasso-token",
@@ -68,7 +67,7 @@ public class LambdaHandler implements RequestHandler<APIGatewayProxyRequestEvent
 
             context.getLogger().log("AUTH OK: " + auth.email);
 
-            // ── Step 2: Process the request ──────────────────────────────────
+            // ── Process request ──────────────────────────────────────────────
             String rawBody = event.getBody();
             if (rawBody == null || rawBody.isBlank()) {
                 return response(400, error("Request body is empty"), cors);
@@ -78,11 +77,13 @@ public class LambdaHandler implements RequestHandler<APIGatewayProxyRequestEvent
 
             String title       = getString(data, "title");
             String stepContent = getString(data, "step_content");
+            String allSteps    = getString(data, "all_steps");
             String expected    = getString(data, "expected");
             String platform    = getString(data, "platform");
             String filePath    = getString(data, "file_path");
             String caseId      = getString(data, "case_id");
             String stepNumber  = getString(data, "step_number");
+            String testrailUrl = getString(data, "testrail_url");
 
             if (stepContent.isEmpty() || caseId.isEmpty()) {
                 return response(400, error("Missing required fields: step_content, case_id"), cors);
@@ -90,8 +91,7 @@ public class LambdaHandler implements RequestHandler<APIGatewayProxyRequestEvent
 
             context.getLogger().log("Generating for case_id=" + caseId + " step=" + stepNumber + " user=" + auth.email);
 
-            // ── Step 3: Generate with Bedrock ────────────────────────────────
-            String claudeOutput = PROCESSOR.generate(title, stepContent, expected, platform, filePath, caseId, stepNumber);
+            String claudeOutput = PROCESSOR.generate(title, stepContent, allSteps, expected, platform, filePath, caseId, stepNumber, testrailUrl);
             if (claudeOutput == null) {
                 return response(500, error("Bedrock returned null"), cors);
             }
@@ -113,38 +113,21 @@ public class LambdaHandler implements RequestHandler<APIGatewayProxyRequestEvent
         }
     }
 
-    /**
-     * Verifies the LASSO token is a valid Amazon employee JWT by:
-     * 1. Decoding the JWT payload (no signature verification needed — we just check claims)
-     * 2. Checking email ends with @amazon.com
-     * 3. Checking token is not expired
-     *
-     * LASSO tokens are issued by Amazon's ADFS after YubiKey-authenticated mwinit.
-     * Non-Amazon users cannot produce a token with @amazon.com email claim.
-     */
     private AuthResult verifyAmazonEmployee(String token, Context context) {
         try {
-            // JWT structure: header.payload.signature
             String[] parts = token.split("\\.");
             if (parts.length != 3) {
                 return new AuthResult(false, "Invalid token format", null);
             }
-
-            // Decode payload (base64url)
             String payloadJson = new String(
                 Base64.getUrlDecoder().decode(padBase64(parts[1])),
                 StandardCharsets.UTF_8
             );
-
             JsonObject payload = JsonParser.parseString(payloadJson).getAsJsonObject();
-
-            // Check email claim
             String email = getString(payload, "email");
             if (email.isEmpty() || !email.toLowerCase().endsWith("@amazon.com")) {
-                return new AuthResult(false, "Not an Amazon employee account (email: " + email + ")", null);
+                return new AuthResult(false, "Not an Amazon employee account", null);
             }
-
-            // Check expiry
             if (payload.has("exp")) {
                 long exp = payload.get("exp").getAsLong();
                 long now = System.currentTimeMillis() / 1000;
@@ -152,9 +135,7 @@ public class LambdaHandler implements RequestHandler<APIGatewayProxyRequestEvent
                     return new AuthResult(false, "Token expired. Please refresh via extension Options → Force Refresh.", email);
                 }
             }
-
             return new AuthResult(true, "OK", email);
-
         } catch (Exception e) {
             context.getLogger().log("JWT decode error: " + e.getMessage());
             return new AuthResult(false, "Token decode failed: " + e.getMessage(), null);
@@ -174,9 +155,7 @@ public class LambdaHandler implements RequestHandler<APIGatewayProxyRequestEvent
         final String reason;
         final String email;
         AuthResult(boolean valid, String reason, String email) {
-            this.valid = valid;
-            this.reason = reason;
-            this.email = email;
+            this.valid = valid; this.reason = reason; this.email = email;
         }
     }
 

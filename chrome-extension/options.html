@@ -41,13 +41,10 @@
     <span class="auto-badge">Auto-refreshes every 6h</span>
   </label>
   <div class="token-row">
-    <input id="jira_api_token" type="password" placeholder="Auto-fetched on startup — must be on VPN" />
+    <input id="jira_api_token" type="password" placeholder="Auto-fetched on startup, must be on VPN" />
     <button class="fetch-token-btn" id="get-token-btn">Force Refresh</button>
   </div>
   <div class="hint" id="token-hint">Auto-refreshes every 6h when on VPN. Click to force refresh immediately.</div>
-
-  <label>Jira Project Key</label>
-  <input id="jira_project" type="text" placeholder="e.g. KRQ" />
 
   <button id="save-btn">Save Settings</button>
   <div id="status"></div>
