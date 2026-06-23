@@ -1,7 +1,6 @@
 const api = typeof browser !== 'undefined' ? browser : chrome;
 const LAMBDA_URL = 'https://p39n1seqxd.execute-api.us-west-2.amazonaws.com/generate-description';
 
-// Fallback projects if cache unavailable
 const FALLBACK_PROJECTS = [
     { key: 'KRQ', name: 'Kindle Rendering QA' },
     { key: 'YJR', name: 'YJR' },
@@ -38,11 +37,7 @@ async function getProjects() {
                 return;
             }
             const projects = response.projects;
-            if (projects && projects.length > 0) {
-                resolve(projects);
-            } else {
-                resolve(FALLBACK_PROJECTS);
-            }
+            resolve(projects && projects.length > 0 ? projects : FALLBACK_PROJECTS);
         });
     });
 }
@@ -66,11 +61,7 @@ function injectButton() {
     button.textContent = '🐛 Create JIRA';
     button.style.cssText = 'padding: 10px 20px; font-size: 14px; cursor: pointer; background: #0052CC; color: white; border: none; border-radius: 3px; font-weight: bold;';
 
-    if (localStorage.getItem('jira_done_' + caseId)) {
-        button.textContent = '✅ Jira Bug Created';
-        button.style.background = '#00875A';
-    }
-
+    // No localStorage check — duplicate prevention handles this
     button.onclick = function () {
         showStepAndProjectDialog(caseId, button);
     };
@@ -86,7 +77,6 @@ async function showStepAndProjectDialog(caseId, button) {
     const existing = document.getElementById('step-project-dialog');
     if (existing) existing.remove();
 
-    // Show loading dialog while fetching projects
     const dialog = document.createElement('div');
     dialog.id = 'step-project-dialog';
     dialog.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:25px; border-radius:8px; box-shadow:0 4px 25px rgba(0,0,0,0.4); z-index:10000; width:420px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
@@ -96,7 +86,6 @@ async function showStepAndProjectDialog(caseId, button) {
     document.body.appendChild(dialog);
 
     const projects = await getProjects();
-
     const projectOptions = projects.map(p =>
         `<option value="${p.key}">${p.key} — ${p.name}</option>`
     ).join('');
@@ -112,7 +101,7 @@ async function showStepAndProjectDialog(caseId, button) {
             ${projectOptions}
         </select>
         <p id="project-warning" style="display:none; margin:0 0 14px 0; color:#FF8B00; font-size:12px; background:#FFF8E1; padding:6px 8px; border-radius:4px; border:1px solid #FFD54F;">
-            ⚠️ Some projects require mandatory fields not supported by this tool. If creation fails, please file manually in Jira.
+            ⚠️ This project may require additional mandatory fields. If creation fails, please file manually in Jira.
         </p>
         <div style="margin-bottom:20px;"></div>
         <div style="display:flex; gap:10px;">
@@ -122,7 +111,6 @@ async function showStepAndProjectDialog(caseId, button) {
 
     setTimeout(() => document.getElementById('step-input').focus(), 50);
 
-    // Show warning for known restricted projects
     const restrictedProjects = ['SBR', 'PTORDA', 'KITTYHAWK'];
     document.getElementById('project-select').onchange = function() {
         const warning = document.getElementById('project-warning');
@@ -143,7 +131,6 @@ async function showStepAndProjectDialog(caseId, button) {
     };
 
     document.getElementById('dialog-cancel-btn').onclick = () => dialog.remove();
-
     document.getElementById('step-input').onkeydown = (e) => {
         if (e.key === 'Enter') document.getElementById('dialog-submit-btn').click();
     };
@@ -184,26 +171,29 @@ function extractStep(testCase, stepNoStr) {
     throw new Error('Step ' + stepNoStr + ' not found in test case');
 }
 
-function extractAllSteps(testCase) {
+// Only include steps 1 through the failing step number
+function extractStepsUpTo(testCase, stepNo) {
+    const stepIndex = parseInt(stepNo); // slice up to and including failing step
     const stepsArr = testCase.custom_steps_separated;
     if (Array.isArray(stepsArr) && stepsArr.length > 0) {
-        return stepsArr.map((s, i) => `${i + 1}. ${s.content || ''}`.trim()).join('\n');
+        return stepsArr.slice(0, stepIndex)
+            .map((s, i) => `${i + 1}. ${s.content || ''}`.trim())
+            .join('\n');
     }
     const stepLines = (testCase.custom_steps || '')
         .split('\n')
         .map(l => l.trim())
         .filter(l => l && !l.toLowerCase().startsWith('prerequisite') && !l.toLowerCase().startsWith('note:'));
-    if (stepLines.length > 0) {
-        return stepLines.map((l, i) => `${i + 1}. ${l}`).join('\n');
-    }
-    return '';
+    return stepLines.slice(0, stepIndex)
+        .map((l, i) => `${i + 1}. ${l}`)
+        .join('\n');
 }
 
 async function callLambda(testCase, step, caseId, creds) {
     const rawFilePath = testCase.custom_filepath || testCase.file_path || '';
     const filePath = rawFilePath.replace(/!\[\]\([^)]*\)/g, '').trim();
     const platform = testCase.custom_platform || '[Filled by tester]';
-    const allSteps = extractAllSteps(testCase);
+    const allSteps = extractStepsUpTo(testCase, step.step_number);
     const testrailUrl = getTestrailUrl(caseId);
 
     const payload = {
@@ -322,10 +312,11 @@ async function createJiraIssue(caseId, stepNo, jiraProject, button, creds) {
     const issueKey = issue.key;
     const issueUrl = creds.jira_url.replace(/\/$/, '') + '/browse/' + issueKey;
 
-    localStorage.setItem('jira_done_' + caseId, 'true');
+    // Reset button — duplicate prevention is the gatekeeper, not localStorage
+    button.disabled = false;
+    button.textContent = '🐛 Create JIRA';
+
     showGoldenDialog(issueKey, issueUrl);
-    button.textContent = '✅ Jira Bug Created';
-    button.style.background = '#00875A';
 }
 
 function showSameStepWarning(sameStepIssue, creds, caseId, stepNo, jiraProject, button) {
@@ -393,6 +384,12 @@ function showDuplicateDialog(issues, creds, caseId, stepNo, jiraProject, button)
 function showGoldenDialog(key, url) {
     const dialog = document.createElement('div');
     dialog.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:25px; border-radius:8px; box-shadow:0 4px 25px rgba(0,0,0,0.4); z-index:10000; min-width:480px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.id = 'close-dialog';
+    closeBtn.style.cssText = 'flex:1; padding:12px; background:#6B778C; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:13px;';
+    closeBtn.textContent = 'Close (10s)';
+
     dialog.innerHTML =
         '<h3 style="margin:0 0 15px 0; color:#00875A; font-size:18px; font-weight:600;">✅ Jira Issue Created Successfully!</h3>' +
         '<div style="margin-bottom:20px; line-height:1.6;">' +
@@ -401,15 +398,32 @@ function showGoldenDialog(key, url) {
                 '<a href="' + url + '" target="_blank" style="color:#0052CC; text-decoration:underline;">' + url + '</a>' +
             '</p>' +
         '</div>' +
-        '<div style="display:flex; gap:12px; width:100%;">' +
+        '<div style="display:flex; gap:12px; width:100%;" id="dialog-btn-row">' +
             '<button id="copy-url-btn" style="flex:1; padding:12px; background:#00875A; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:13px;">📋 Copy URL</button>' +
             '<button id="open-jira-btn" style="flex:1; padding:12px; background:#0052CC; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:13px;">🔗 Open Jira</button>' +
-            '<button id="close-dialog" style="flex:1; padding:12px; background:#6B778C; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:13px;">Close</button>' +
         '</div>';
+
     document.body.appendChild(dialog);
+    document.getElementById('dialog-btn-row').appendChild(closeBtn);
+
     document.getElementById('copy-url-btn').onclick = function () { navigator.clipboard.writeText(url); this.textContent = '✅ Copied!'; };
     document.getElementById('open-jira-btn').onclick = () => window.open(url, '_blank');
-    document.getElementById('close-dialog').onclick = () => dialog.remove();
+
+    // Auto-close with countdown
+    let countdown = 10;
+    const timer = setInterval(() => {
+        countdown--;
+        closeBtn.textContent = `Close (${countdown}s)`;
+        if (countdown <= 0) {
+            clearInterval(timer);
+            dialog.remove();
+        }
+    }, 1000);
+
+    closeBtn.onclick = () => {
+        clearInterval(timer);
+        dialog.remove();
+    };
 }
 
 const observer = new MutationObserver(() => injectButton());
